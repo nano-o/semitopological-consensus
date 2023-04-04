@@ -4,6 +4,8 @@ CONSTANTS
     P \* the set of points
   , Open \* the set of open sets
 
+\* {} and P are opens:
+ASSUME {} \in Open /\ P \in Open
 \* The set of opens is closed under arbitrary unions:
 ASSUME \A O \in SUBSET Open : UNION O \in Open
 
@@ -12,7 +14,9 @@ Closure(S) ==
     {p \in P : \A O \in Open : p \in O => O \cap S # {}}
         
 Transitive(S) == \A O1, O2 \in Open :
-    O1 \cap S # {} /\ O2 \cap S # {} => O1 \cap O2 # {}
+    /\ O1 \cap S # {}
+    /\ O2 \cap S # {}
+    => O1 \cap O2 # {}
 
 Topen(S) == S \in Open /\ Transitive(S)
 

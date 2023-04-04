@@ -6,6 +6,8 @@
 (* level of abstraction.                                                           *)
 (***********************************************************************************)
 
+\* TODO: liveness
+
 EXTENDS Integers
 
 CONSTANTS
@@ -29,7 +31,7 @@ Phases == 1..4
 Vote == [rnd: Rounds, phase: Phases, value: V]
 \* `NotAVote' is a special constant that we use to indicate the absence of a vote.
 \* Giving it a round field equal to -1 is convenient.
-NotAVote == [rnd |-> -1]
+NotAVote == [round |-> -1]
 
 \* `Leq' is a partial order on votes:
 Leq(v1, v2) ==
@@ -55,7 +57,7 @@ VARIABLES votes, round, decided
 TypeOkay ==
     /\ votes \in [P -> SUBSET Vote]
     /\ round \in [P -> Nat]
-    /\ decided \in [P -> SUBSET V]
+    /\ decided \in [P -> SUBSET (Rounds\times V)]
 
 LargestVote(p, phase) ==
     LET vs == {v \in votes[p] : v.phase = phase} IN
@@ -97,7 +99,7 @@ Propose(p, v) ==
     TRUE
 
 DoVote(p, v, r, phase) ==
-    /\ votes' = [votes EXCEPT ![p] = @ \union [round |-> r, phase |-> phase, value |-> v]]
+    /\ votes' = [votes EXCEPT ![p] = @ \union {[round |-> r, phase |-> phase, value |-> v]}]
     /\ UNCHANGED <<decided, round>>
     
 Vote1(p, v, r) ==
@@ -105,33 +107,36 @@ Vote1(p, v, r) ==
     /\ SafeAt(v, r, p, 4, 1)
     /\ DoVote(p, v, r, 1)
 
-\* whether v has been voted for by a quorum in phase `phase' of round `r':
-Accepted(v, r, phase) ==
-    /\ \E Q \in Quorum : \A q \in Q : [round |-> r, phase |-> phase, value |-> v] \in votes[q]
+\* whether v has been voted for by a quorum of p in phase `phase' of round `r':
+Accepted(p, v, r, phase) == \E Q \in Quorum :
+    /\ p \in Q
+    /\ \A q \in Q : [round |-> r, phase |-> phase, value |-> v] \in votes[q]
 
 Vote2(p, v, r) ==
     /\ r = round[p]
-    /\ Accepted(v, r, 1)
+    /\ Accepted(p, v, r, 1)
     /\ DoVote(p, v, r, 2)
 
 Vote3(p, v, r) ==
     /\ r = round[p]
-    /\ Accepted(v, r, 2)
+    /\ Accepted(p, v, r, 2)
     /\ DoVote(p, v, r, 3)
 
 Vote4(p, v, r) ==
     /\ r = round[p]
-    /\ Accepted(v, r, 3)
+    /\ Accepted(p, v, r, 3)
     /\ DoVote(p, v, r, 4)
 
 Decide(p, v, r) ==
     /\ r = round[p]
-    /\ Accepted(v, r, 4)
-    /\ decided' = [decided EXCEPT ![p] = @ \union {v}]
+    /\ Accepted(p, v, r, 4)
+    /\ decided' = [decided EXCEPT ![p] = @ \union {<<r, v>>}]
     /\ UNCHANGED <<votes, round>>
 
-Timeout(p) ==
+Timeout(p, r) ==
+    /\ r = round[p]
     /\ round' = [round EXCEPT ![p] = @ + 1]
+    /\ UNCHANGED <<votes, decided>>
 
 Next == \E p \in P, v \in V, r \in Rounds :
     \/ Vote1(p, v, r)
@@ -139,13 +144,13 @@ Next == \E p \in P, v \in V, r \in Rounds :
     \/ Vote3(p, v, r)
     \/ Vote4(p, v, r)
     \/ Decide(p, v, r)
-    \/ Timeout(p)
+    \/ Timeout(p, r)
 
 vars == <<round, votes, decided>>
 
 Spec == Init /\ [][Next]_vars
 
-Safety == \A p,q \in T, v,w \in V :
-    v \in decided[p] /\ w \in decided[q] => v = w
+Safety == \A p,q \in T, v,w \in V, r1,r2 \in Rounds :
+    <<r1,v>> \in decided[p] /\ <<r2,w>> \in decided[q] => v = w
 
 =============================================================================
