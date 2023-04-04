@@ -1,4 +1,4 @@
---------------------- MODULE Consensus ---------------------
+--------------------- MODULE Voting ---------------------
 
 (***********************************************************************************)
 (* This is a high-level specification of a consensus algorithm for a quorum system *)
