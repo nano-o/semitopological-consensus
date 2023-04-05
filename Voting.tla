@@ -6,10 +6,12 @@
 (* level of abstraction.                                                           *)
 (***********************************************************************************)
 
+\* TODO: move the liveness stuff to another spec
+
 EXTENDS Integers, FiniteSets
 
 CONSTANTS
-    V \* the set of values to decide on
+    Value \* the set of values to decide on
   , P \* the set of processes
   , Quorum \* the set of quorums
   , T \* a topen
@@ -28,7 +30,7 @@ ASSUME GoodRound \in Round
 \* Each round consists of 4 phases:
 Phase == 1..4
 \* A vote is cast in a phase of a round and for a value:
-Vote == [round: Round, phase: Phase, value: V]
+Vote == [round: Round, phase: Phase, value: Value]
 \* `NotAVote' is a special constant that we use to indicate the absence of a vote.
 \* Giving it a round field equal to -1 is convenient.
 NotAVote == [round |-> -1]
@@ -60,26 +62,26 @@ VARIABLES votes, round, decided
 TypeOkay ==
     /\ votes \in [P -> SUBSET Vote]
     /\ round \in [P -> Nat]
-    /\ decided \in [P -> SUBSET (Round\times V)]
+    /\ decided \in [P -> SUBSET (Round\times Value)]
 
 \* largest vote of p in phase `phase' before round r
-LargestVote(p, phase, r) ==
+HighestVote(p, phase, r) ==
     LET vs == {v \in votes[p] : v.phase = phase /\ v.round < r} IN
       Max(vs, NotAVote)
 
 \* second largest vote of p in phase `phase' before round r
-SecondLargestVote(p, phase, r) ==
-    LET largest == LargestVote(p, phase, r)
+SecondHighestVote(p, phase, r) ==
+    LET largest == HighestVote(p, phase, r)
         vs == {v \in votes[p] : v.phase = phase /\ v.round < r /\ v.value # largest.value}
     IN Max(vs, NotAVote)
 
 \* `v' is safe in round `r2' according to the votes of process `p' in phase `phase' before round r:
 ClaimsSafeAt(v, r, r2, p, phase) ==
     \/ r = 0
-    \/ LET mv == LargestVote(p, 1, r) IN
+    \/ LET mv == HighestVote(p, 1, r) IN
          /\ r2 <= mv.round
          /\ mv.value = v
-    \/ r2 <= SecondLargestVote(p, 1, r).round
+    \/ r2 <= SecondHighestVote(p, 1, r).round
 
 \* continued on the next page...
 (* `^\newpage^' *)
@@ -91,11 +93,11 @@ SafeAt(v, r, p, phaseA, phaseB) ==
     \/ \E Q \in Quorum : 
         /\ p \in Q \* Q must be a quorum of p
         /\ \A q \in Q : round[q] >= r \* every member of Q is in round at least r
-        /\  \/ \A q \in Q : LargestVote(q, phaseA, r) = NotAVote \* members of Q never voted before r
+        /\  \/ \A q \in Q : HighestVote(q, phaseA, r) = NotAVote \* members of Q never voted before r
             \/ \E r2 \in Round :
                 /\ r2 < r
-                /\ \E q \in Q : LargestVote(q, phaseA, r).round = r2
-                /\ \A q \in Q : LET lvq == LargestVote(q, phaseA, r) IN
+                /\ \E q \in Q : HighestVote(q, phaseA, r).round = r2
+                /\ \A q \in Q : LET lvq == HighestVote(q, phaseA, r) IN
                     /\ lvq.round <= r2
                     /\ lvq.round = r2 => lvq.value = v
                 /\ \E S \in SUBSET P :
@@ -108,7 +110,7 @@ Init ==
     /\ decided = [p \in P |-> {}]
 
 DoVote(p, v, r, phase) ==
-    /\ \A w \in V : [round |-> r, phase |-> phase, value |-> w] \notin votes[p]
+    /\ \A w \in Value : [round |-> r, phase |-> phase, value |-> w] \notin votes[p]
     /\ votes' = [votes EXCEPT ![p] = @ \union {[round |-> r, phase |-> phase, value |-> v]}]
     /\ UNCHANGED <<decided, round>>
 
@@ -142,7 +144,7 @@ Vote4(p, v, r) ==
 Decide(p, v, r) ==
     /\ r = round[p]
     /\ Accepted(p, v, r, 4)
-    /\ \A w \in V : <<r, w>> \notin decided[p]
+    /\ \A w \in Value : <<r, w>> \notin decided[p]
     /\ decided' = [decided EXCEPT ![p] = @ \union {<<r, v>>}]
     /\ UNCHANGED <<votes, round>>
 
@@ -165,7 +167,7 @@ GoodRoundSpec == \A p \in P :
          v1.round = GoodRound /\ v2.round = GoodRound => v1.value = v2.value
 
 Next == 
-    /\ \E p \in P, v \in V, r \in Round :
+    /\ \E p \in P, v \in Value, r \in Round :
         \/ Vote1(p, v, r)
         \/ Vote2(p, v, r)
         \/ Vote3(p, v, r)
@@ -182,7 +184,7 @@ Spec ==
     /\ Init 
     /\ [][Next]_vars
     \* fairness constraints:
-    /\ \A p \in P, v \in V, r \in Round :
+    /\ \A p \in P, v \in Value, r \in Round :
         /\ WF_vars(Vote1(p,v,r))
         /\ WF_vars(Vote2(p,v,r))
         /\ WF_vars(Vote3(p,v,r))
@@ -190,10 +192,10 @@ Spec ==
         /\ WF_vars(Decide(p,v,r))
         /\ WF_vars(r < GoodRound /\ Timeout(p, r))
 
-Safety == \A p,q \in T, v,w \in V, r1,r2 \in Round :
+Safety == \A p,q \in T, v,w \in Value, r1,r2 \in Round :
     <<r1,v>> \in decided[p] /\ <<r2,w>> \in decided[q] => v = w
 
-Liveness == \A p \in T : \E v \in V : <>(<<GoodRound, v>> \in decided[p])
+Liveness == \A p \in T : \E v \in Value : <>(<<GoodRound, v>> \in decided[p])
 \* Liveness exhaustively checked with 3 processes, 2 non-trivial quorums of cardinatlity 2, and GoodRound=2.
 \* Took 6 hours using 10 cores and 35GB of memory
 
