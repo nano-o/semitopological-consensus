@@ -47,6 +47,8 @@ Maximal(v, S) ==
     /\ v \in S
     /\ \A v2 \in S : Leq(v2,v)
 
+(* `^\newpage^' *)
+
 \* A maximal element in the set S ordered by Leq, if such exists, and otherwise the default value provided:
 Max(S, default) == 
     IF \E e \in S : Maximal(e, S)
@@ -80,6 +82,9 @@ ClaimsSafeAt(v, r, r2, p, phase) ==
          /\ r2 <= mv.round
          /\ mv.value = v
     \/ r2 <= SecondLargestVote(p, 1, r).round
+
+\* continued on the next page...
+(* `^\newpage^' *)
 
 \* Whether value v is safe to vote for in round r by process p:
 \* TODO: explain `phaseA' and `phaseB'
@@ -123,6 +128,8 @@ Vote2(p, v, r) ==
     /\ r = round[p]
     /\ Accepted(p, v, r, 1)
     /\ DoVote(p, v, r, 2)
+
+(* `^\pagebreak^' *)
 
 Vote3(p, v, r) ==
     /\ r = round[p]
@@ -170,6 +177,8 @@ Next ==
     /\ GoodRoundSpec
 
 vars == <<round, votes, decided>>
+
+(* `^\newpage^' *)
 
 Spec == 
     /\ Init 
