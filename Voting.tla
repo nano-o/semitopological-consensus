@@ -8,13 +8,14 @@
 
 \* TODO: liveness
 
-EXTENDS Integers
+EXTENDS Integers, FiniteSets
 
 CONSTANTS
     V \* the set of values to decide on
   , P \* the set of processes
   , Quorum \* the set of quorums
   , T \* a topen
+  , GoodRound \* A good round in which all processes should decide
 
 INSTANCE Semitopology WITH
     P <- P,
@@ -24,11 +25,12 @@ INSTANCE Semitopology WITH
 ASSUME Topen(T)
 
 \* The protocol starts at round 0 and the round number only increases:
-Rounds == Nat
+Round == Nat
+ASSUME GoodRound \in Round
 \* Each round consists of 4 phases:
-Phases == 1..4
+Phase == 1..4
 \* A vote is cast in a phase of a round and for a value:
-Vote == [rnd: Rounds, phase: Phases, value: V]
+Vote == [round: Round, phase: Phase, value: V]
 \* `NotAVote' is a special constant that we use to indicate the absence of a vote.
 \* Giving it a round field equal to -1 is convenient.
 NotAVote == [round |-> -1]
@@ -37,6 +39,7 @@ NotAVote == [round |-> -1]
 Leq(v1, v2) ==
     \/ v1.round < v2.round
     \/ /\ v1.round = v2.round
+        \* TODO: we probably don't need this second part:
        /\ v1.phase <= v2.phase
 
 \* Whether v is maximal in S
@@ -57,51 +60,55 @@ VARIABLES votes, round, decided
 TypeOkay ==
     /\ votes \in [P -> SUBSET Vote]
     /\ round \in [P -> Nat]
-    /\ decided \in [P -> SUBSET (Rounds\times V)]
+    /\ decided \in [P -> SUBSET (Round\times V)]
 
-LargestVote(p, phase) ==
-    LET vs == {v \in votes[p] : v.phase = phase} IN
+\* largest vote of p in phase `phase' before round r
+LargestVote(p, phase, r) ==
+    LET vs == {v \in votes[p] : v.phase = phase /\ v.round < r} IN
       Max(vs, NotAVote)
 
-SecondLargestVote(p, phase) ==
-    LET vs == {v \in votes[p] : v.phase = phase} \ {LargestVote(p, phase)}
+\* second largest vote of p in phase `phase' before round r
+SecondLargestVote(p, phase, r) ==
+    LET largest == LargestVote(p, phase, r)
+        vs == {v \in votes[p] : v.phase = phase /\ v.round < r /\ v.value # largest.value}
     IN Max(vs, NotAVote)
 
-\* `v' is safe to vote for in round `r' according to the votes of process `p' in phase `phase':
-ClaimsSafeAt(v, r, p, phase) ==
+\* `v' is safe in round `r2' according to the votes of process `p' in phase `phase' before round r:
+ClaimsSafeAt(v, r, r2, p, phase) ==
     \/ r = 0
-    \/ LET mv == LargestVote(p, 1) IN
-         /\ r <= mv.round
+    \/ LET mv == LargestVote(p, 1, r) IN
+         /\ r2 <= mv.round
          /\ mv.value = v
-    \/ r <= SecondLargestVote(p, 1).round
+    \/ r2 <= SecondLargestVote(p, 1, r).round
 
 \* Whether value v is safe to vote for in round r by process p:
 \* TODO: explain `phaseA' and `phaseB'
-SafeAt(v, r, p, phaseA, phaseB) == \E Q \in Quorum :
-    /\ p \in Q \* Q must be a quorum of p
-    /\ \A q \in Q : round[q] >= r
-    /\ \/ \A q \in Q : LargestVote(q, phaseA) = NotAVote \* members of Q never voted in phase 4 before round r
-       \/ \E r2 \in Rounds :
-         /\ r2 < r
-         /\ \A q \in Q : LET lvq == LargestVote(q, phaseA) IN
-           /\ lvq.round <= r2
-           /\ lvq.round = r2 => lvq.value = v
-         /\ \E S \in SUBSET P :
-            /\ p \in Closure(S)
-            /\ \A q \in S : ClaimsSafeAt(v, r, q, phaseB)
+SafeAt(v, r, p, phaseA, phaseB) ==
+    \/ r = 0
+    \/ \E Q \in Quorum : 
+        /\ p \in Q \* Q must be a quorum of p
+        /\ \A q \in Q : round[q] >= r \* every member of Q is in round at least r
+        /\  \/ \A q \in Q : LargestVote(q, phaseA, r) = NotAVote \* members of Q never voted before r
+            \/ \E r2 \in Round :
+                /\ r2 < r
+                /\ \E q \in Q : LargestVote(q, phaseA, r).round = r2
+                /\ \A q \in Q : LET lvq == LargestVote(q, phaseA, r) IN
+                    /\ lvq.round <= r2
+                    /\ lvq.round = r2 => lvq.value = v
+                /\ \E S \in SUBSET P :
+                    /\ p \in Closure(S)
+                    /\ \A q \in S : ClaimsSafeAt(v, r, r2, q, phaseB)
 
 Init ==
     /\ votes = [p \in P |-> {}]
     /\ round = [p \in P |-> 0]
     /\ decided = [p \in P |-> {}]
 
-Propose(p, v) ==
-    TRUE
-
 DoVote(p, v, r, phase) ==
+    /\ \A w \in V : [round |-> r, phase |-> phase, value |-> w] \notin votes[p]
     /\ votes' = [votes EXCEPT ![p] = @ \union {[round |-> r, phase |-> phase, value |-> v]}]
     /\ UNCHANGED <<decided, round>>
-    
+
 Vote1(p, v, r) ==
     /\ r = round[p]
     /\ SafeAt(v, r, p, 4, 1)
@@ -130,27 +137,55 @@ Vote4(p, v, r) ==
 Decide(p, v, r) ==
     /\ r = round[p]
     /\ Accepted(p, v, r, 4)
+    /\ \A w \in V : <<r, w>> \notin decided[p]
     /\ decided' = [decided EXCEPT ![p] = @ \union {<<r, v>>}]
     /\ UNCHANGED <<votes, round>>
 
 Timeout(p, r) ==
     /\ r = round[p]
-    /\ round' = [round EXCEPT ![p] = @ + 1]
+    /\ round' = [round EXCEPT ![p] = r + 1]
     /\ UNCHANGED <<votes, decided>>
 
-Next == \E p \in P, v \in V, r \in Rounds :
-    \/ Vote1(p, v, r)
-    \/ Vote2(p, v, r)
-    \/ Vote3(p, v, r)
-    \/ Vote4(p, v, r)
-    \/ Decide(p, v, r)
-    \/ Timeout(p, r)
+(***********************************************************************************)
+(* To check liveness, we are going to assume that the round `GoodRound' lasts long *)
+(* enough (i.e. forever) and all processes in `T' vote for the same value `v' and  *)
+(* `v' satisfies the condition that the leader uses in the real algorithm to       *)
+(* propose a value.                                                                *)
+(***********************************************************************************)
+GoodRoundSpec == \A p \in P :
+    /\ round'[p] <= GoodRound
+    /\ \A v \in votes'[p] : v.round = GoodRound /\ v.phase = 1 =>
+        SafeAt(v.value, GoodRound, p, 3, 2)
+    /\ \A p1,p2 \in P : \A v1 \in votes'[p1] : \A v2 \in votes'[p2] :
+         v1.round = GoodRound /\ v2.round = GoodRound => v1.value = v2.value
+
+Next == 
+    /\ \E p \in P, v \in V, r \in Round :
+        \/ Vote1(p, v, r)
+        \/ Vote2(p, v, r)
+        \/ Vote3(p, v, r)
+        \/ Vote4(p, v, r)
+        \/ Decide(p, v, r)
+        \/ Timeout(p, r)
+    /\ GoodRoundSpec
 
 vars == <<round, votes, decided>>
 
-Spec == Init /\ [][Next]_vars
+Spec == 
+    /\ Init 
+    /\ [][Next]_vars
+    \* fairness constraints:
+    /\ \A p \in P, v \in V, r \in Round :
+        /\ WF_vars(Vote1(p,v,r))
+        /\ WF_vars(Vote2(p,v,r))
+        /\ WF_vars(Vote3(p,v,r))
+        /\ WF_vars(Vote4(p,v,r))
+        /\ WF_vars(Decide(p,v,r))
+        /\ WF_vars(r < GoodRound /\ Timeout(p, r))
 
-Safety == \A p,q \in T, v,w \in V, r1,r2 \in Rounds :
+Safety == \A p,q \in T, v,w \in V, r1,r2 \in Round :
     <<r1,v>> \in decided[p] /\ <<r2,w>> \in decided[q] => v = w
+
+Liveness == \A p \in T : \E v \in V : <>(<<GoodRound, v>> \in decided[p])
 
 =============================================================================
