@@ -6,8 +6,6 @@
 (* level of abstraction.                                                           *)
 (***********************************************************************************)
 
-\* TODO: liveness
-
 EXTENDS Integers, FiniteSets
 
 CONSTANTS
@@ -196,5 +194,7 @@ Safety == \A p,q \in T, v,w \in V, r1,r2 \in Round :
     <<r1,v>> \in decided[p] /\ <<r2,w>> \in decided[q] => v = w
 
 Liveness == \A p \in T : \E v \in V : <>(<<GoodRound, v>> \in decided[p])
+\* Liveness exhaustively checked with 3 processes, 2 non-trivial quorums of cardinatlity 2, and GoodRound=2.
+\* Took 6 hours using 10 cores and 35GB of memory
 
 =============================================================================
