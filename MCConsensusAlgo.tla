@@ -13,7 +13,9 @@ T_MC == P
 Round_MC == 0..2
 Leader_MC(p, r) == p1
 
-NoDecision == \A p \in P : decision[p] = {}
+NoDecision == \A p \in P : decided[p] = {}
+
+Refinement == Voting!Spec
 
 \* TODO: why does this not work? TypeOkay breaks
 \* RoundConstraint == \A p \in P : round'[p] \in Round

@@ -52,9 +52,9 @@ VARIABLES
 ,   phase \* map from process to curent phase
 ,   highest \* map from process to highest vote in each phase
 ,   secondHighest \* map from process to second highest voted round (phase 1 and 2)
-,   decision
+,   decided
 
-vars == <<network, round, phase, highest, secondHighest, decision>>
+vars == <<network, round, phase, highest, secondHighest, decided>>
 
 TypeOkay ==
     /\ network \subseteq Message
@@ -62,7 +62,7 @@ TypeOkay ==
     /\ phase \in [P -> Phase]
     /\ highest \in [P -> [VotePhase -> [round : RoundOrNone, value : Value]]]
     /\ secondHighest \in [P -> [{1,2} -> RoundOrNone]]
-    /\ decision \in [P -> SUBSET Value]
+    /\ decided \in [P -> SUBSET (Round\times Value)]
 
 SomeValue == CHOOSE v \in Value : TRUE
 
@@ -72,7 +72,7 @@ Init ==
     /\ phase = [p \in P |-> "propose"]
     /\ highest = [p \in P |-> [i \in VotePhase |-> [round |-> -1, value |-> SomeValue]]]
     /\ secondHighest = [p \in P |-> [i \in {1,2} |-> -1]]
-    /\ decision = [p \in P |-> {}]
+    /\ decided = [p \in P |-> {}]
 
 Send(msgs) == network' = network \cup msgs
 
@@ -98,7 +98,7 @@ SuggestAndProve(p, r) ==
     /\ Send({SuggestMsg(p), ProofMsg(p)})
     /\ phase' = [phase EXCEPT ![p] =
         IF Leader(p, r) = p THEN "propose" ELSE "vote1"]
-    /\ UNCHANGED <<round, highest, secondHighest, decision>>
+    /\ UNCHANGED <<round, highest, secondHighest, decided>>
 
 ClaimsSafeAt(v, r, q, m) == 
     LET h == IF m.type = "proof" THEN "h1" ELSE "h2"
@@ -136,7 +136,7 @@ Propose(p, r, v) ==
     /\ SafeAt(v, r, p, "suggest")
     /\ Send({[type |-> "proposal", src |-> p, round |-> r, value |-> v]})
     /\ phase' = [phase EXCEPT ![p] = "vote1"]
-    /\ UNCHANGED <<round, highest, secondHighest, decision>>
+    /\ UNCHANGED <<round, highest, secondHighest, decided>>
 
 UpdateHighest(p, r, v, i) ==
     highest' = [highest EXCEPT ![p] = [@ EXCEPT ![i] = [round |-> r, value |-> v]]]
@@ -158,7 +158,7 @@ Vote1(p, r, v) ==
     /\ SendVote(p, r, 1, v)
     /\ UpdateHighest(p, r, v, 1)
     /\ UpdateSecondHighest(p, 1)
-    /\ UNCHANGED <<round, decision>>
+    /\ UNCHANGED <<round, decided>>
 
 UnanimousQuorum(p, r, i, v) == \E Q \in Quorum :
     /\ p \in Q
@@ -173,7 +173,7 @@ Vote2(p, r, v) ==
     /\ SendVote(p, r, 2, v)
     /\ UpdateHighest(p, r, v, 2)
     /\ UpdateSecondHighest(p, 2)
-    /\ UNCHANGED <<round, decision>>
+    /\ UNCHANGED <<round, decided>>
 
 Vote3(p, r, v) ==
     /\ round[p] = r
@@ -182,7 +182,7 @@ Vote3(p, r, v) ==
     /\ SendVote(p, r, 3, v)
     /\ UpdateHighest(p, r, v, 3)
     /\ phase' = [phase EXCEPT ![p] = "vote4"]
-    /\ UNCHANGED <<round, secondHighest, decision>>
+    /\ UNCHANGED <<round, secondHighest, decided>>
 
 Vote4(p, r, v) ==
     /\ round[p] = r
@@ -191,19 +191,19 @@ Vote4(p, r, v) ==
     /\ SendVote(p, r, 4, v)
     /\ UpdateHighest(p, r, v, 4)
     /\ phase' = [phase EXCEPT ![p] = "finished"]
-    /\ UNCHANGED <<round, secondHighest, decision>>
+    /\ UNCHANGED <<round, secondHighest, decided>>
 
 Decide(p, r, v) ==
     /\ round[p] = r
     /\ UnanimousQuorum(p, r, 4, v)
-    /\ decision' = [decision EXCEPT ![p] = @ \cup {v}]
+    /\ decided' = [decided EXCEPT ![p] = @ \cup {<<r,v>>}]
     /\ UNCHANGED <<network, round, phase, highest, secondHighest>>
 
 Timeout(p, r) ==
     /\ round[p] = r
     /\ round' = [round EXCEPT ![p] = r+1]
     /\ phase' = [phase EXCEPT ![p] = "suggest/proof"]
-    /\ UNCHANGED <<network, highest, secondHighest, decision>>
+    /\ UNCHANGED <<network, highest, secondHighest, decided>>
     /\ round'[p] \in Round \* for TLC
 
 Next == \E p \in P, r \in Round, v \in Value :
@@ -218,20 +218,19 @@ Next == \E p \in P, r \in Round, v \in Value :
 
 Spec == Init /\ [][Next]_vars
 
-Safety == \A p,q \in P, v,w \in Value :
-    v \in decision[p] /\ w \in decision[q] => v = w
+Safety == \A p,q \in P, v,w \in Value, r1,r2 \in Round :
+    <<r1,v>> \in decided[p] /\ <<r2,w>> \in decided[q] => v = w
 
 
 \* Next we instantiate the Voting specification
 
-\* VARIABLES votes_, round_, decided_
+votes_ == [p \in P |-> 
+    LET VoteMsgs == {m \in network : m.src = p /\ m.type = "vote"} IN
+      {[round |-> v.round, phase |-> v.phase, value |-> v.value] : v \in VoteMsgs}]
 
-\* Voting == INSTANCE Voting WITH 
-\*     votes <- votes_
-\* ,   round <- round_
-\* ,   decided <- decided_
-\* ,   GoodRound <- 0
-
-\* TODO: refinement mapping
+Voting == INSTANCE Voting WITH 
+    votes <- votes_
+,   round <- round
+,   decided <- decided
 
 ===============================
