@@ -77,7 +77,7 @@ SecondHighestVote(p, phase, r) ==
 
 \* `v' is safe in round `r2' according to the votes of process `p' in phase `phase' before round r:
 ClaimsSafeAt(v, r, r2, p, phase) ==
-    \/ r = 0
+    \/ r2 = 0
     \/ LET mv == HighestVote(p, 1, r) IN
          /\ r2 <= mv.round
          /\ mv.value = v
@@ -86,20 +86,21 @@ ClaimsSafeAt(v, r, r2, p, phase) ==
 \* continued on the next page...
 (* `^\newpage^' *)
 
-\* Whether value v is safe to vote for in round r by process p:
-\* TODO: explain `phaseA' and `phaseB'
+\* Whether value v is safe to vote for/propose in round r by process p
+\* In case of a vote, we'll use phaseA=4 and phaseB=1
+\* In case of a proposal, we'll use phaseA=3 and phaseB=2
 SafeAt(v, r, p, phaseA, phaseB) ==
     \/ r = 0
     \/ \E Q \in Quorum : 
         /\ p \in Q \* Q must be a quorum of p
         /\ \A q \in Q : round[q] >= r \* every member of Q is in round at least r
-        /\  \/ \A q \in Q : HighestVote(q, phaseA, r) = NotAVote \* members of Q never voted before r
+        /\  \/ \A q \in Q : HighestVote(q, phaseA, r) = NotAVote \* members of Q never voted in phaseA before r
             \/ \E r2 \in Round :
                 /\ r2 < r
                 /\ \E q \in Q : HighestVote(q, phaseA, r).round = r2
-                /\ \A q \in Q : LET lvq == HighestVote(q, phaseA, r) IN
-                    /\ lvq.round <= r2
-                    /\ lvq.round = r2 => lvq.value = v
+                /\ \A q \in Q : LET hvq == HighestVote(q, phaseA, r) IN
+                    /\ hvq.round <= r2
+                    /\ hvq.round = r2 => hvq.value = v
                 /\ \E S \in SUBSET P :
                     /\ p \in Closure(S)
                     /\ \A q \in S : ClaimsSafeAt(v, r, r2, q, phaseB)
