@@ -100,11 +100,11 @@ SuggestAndProve(p, r) ==
         IF Leader(p, r) = p THEN "propose" ELSE "vote1"]
     /\ UNCHANGED <<round, highest, secondHighest, decided>>
 
-ClaimsSafeAt(v, r, q, m) == 
+ClaimsSafeAt(v, r, m) == 
     LET h == IF m.type = "proof" THEN "h1" ELSE "h2"
         sh == IF m.type = "proof" THEN "sh1" ELSE "sh2"
     IN
-        \/ r <= 0
+        \/ r = 0
         \/ r <= m[h].round /\ v = m[h].value
         \/ r <= m[sh]
 
@@ -112,6 +112,7 @@ SafeAt(v, r, p, type) ==
     \/ r = 0
     \/ \E Q \in Quorum :
         /\ p \in Q \* Q must be a quorum of p
+        \* every member of Q has joined the current round and sent a message of the right type:
         /\ \A q \in Q : \E m \in network : 
             m.type = type /\ m.src = q /\ m.round = r
         /\ LET h == IF type = "proof" THEN "h4" ELSE "h3"
@@ -126,9 +127,11 @@ SafeAt(v, r, p, type) ==
                         /\ hvq.round = r2 => hvq.value = v
                     /\ \E S \in SUBSET P :
                         /\ p \in Closure(S)
+                        /\ \A q \in S : \E m2 \in network : 
+                            m2.type = type /\ m2.src = q /\ m2.round = r
                         /\ LET m2 == [q \in S |-> CHOOSE m2 \in network :
                                 m2.type = type /\ m2.src = q /\ m2.round = r] IN
-                            \A q \in S : ClaimsSafeAt(v, r, q, m2[q])  
+                            \A q \in S : ClaimsSafeAt(v, r2, m2[q])  
 
 Propose(p, r, v) ==
     /\ round[p] = r
