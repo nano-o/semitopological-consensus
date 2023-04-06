@@ -46,4 +46,7 @@ Spec ==
 
 Liveness == \A p \in T : \E v \in Value : <>(<<GoodRound, v>> \in decided[p])
 
+\* Liveness exhaustively checked with 3 processes, 2 non-trivial quorums of cardinatlity 2, and GoodRound=2.
+\* Took 6 hours using 10 cores and 35GB of memory
+
 =================================================================

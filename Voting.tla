@@ -173,7 +173,4 @@ Spec ==
 Safety == \A p,q \in T, v,w \in Value, r1,r2 \in Round :
     <<r1,v>> \in decided[p] /\ <<r2,w>> \in decided[q] => v = w
 
-\* Liveness exhaustively checked with 3 processes, 2 non-trivial quorums of cardinatlity 2, and GoodRound=2.
-\* Took 6 hours using 10 cores and 35GB of memory
-
 =============================================================================

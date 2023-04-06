@@ -236,4 +236,6 @@ Voting == INSTANCE Voting WITH
 ,   round <- round
 ,   decided <- decided
 
+THEOREM Spec => Voting!Spec
+
 ===============================
