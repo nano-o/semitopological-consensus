@@ -6,7 +6,9 @@
 (* level of abstraction.                                                           *)
 (***********************************************************************************)
 
-\* TODO: move the liveness stuff to another spec
+\* TODO: add malicious behavior?
+\* Maybe not at this level. Instead we could show that the concrete algorithm, with 
+\* malicious behavior, refines this one
 
 EXTENDS Integers, FiniteSets
 
