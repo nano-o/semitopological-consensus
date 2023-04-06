@@ -12,10 +12,9 @@ EXTENDS Integers, FiniteSets
 
 CONSTANTS
     Value \* the set of values to decide on
-  , P \* the set of processes
-  , Quorum \* the set of quorums
-  , T \* a topen
-  , GoodRound \* A good round in which all processes should decide
+,   P \* the set of processes
+,   Quorum \* the set of quorums
+,   T \* a topen
 
 INSTANCE Semitopology WITH
     P <- P,
@@ -26,7 +25,6 @@ ASSUME Topen(T)
 
 \* The protocol starts at round 0 and the round number only increases:
 Round == Nat
-ASSUME GoodRound \in Round
 \* Each round consists of 4 phases:
 Phase == 1..4
 \* A vote is cast in a phase of a round and for a value:
@@ -58,6 +56,7 @@ Max(S, default) ==
 \* We now specify the behaviors of the algorithm:
 
 VARIABLES votes, round, decided
+vars == <<round, votes, decided>>
 
 TypeOkay ==
     /\ votes \in [P -> SUBSET Vote]
@@ -154,19 +153,6 @@ Timeout(p, r) ==
     /\ round' = [round EXCEPT ![p] = r + 1]
     /\ UNCHANGED <<votes, decided>>
 
-(***********************************************************************************)
-(* To check liveness, we are going to assume that the round `GoodRound' lasts long *)
-(* enough (i.e. forever) and all processes in `T' vote for the same value `v' and  *)
-(* `v' satisfies the condition that the leader uses in the real algorithm to       *)
-(* propose a value.                                                                *)
-(***********************************************************************************)
-GoodRoundSpec == \A p \in P :
-    /\ round'[p] <= GoodRound
-    /\ \A v \in votes'[p] : v.round = GoodRound /\ v.phase = 1 =>
-        SafeAt(v.value, GoodRound, p, 3, 2)
-    /\ \A p1,p2 \in P : \A v1 \in votes'[p1] : \A v2 \in votes'[p2] :
-         v1.round = GoodRound /\ v2.round = GoodRound => v1.value = v2.value
-
 Next == 
     /\ \E p \in P, v \in Value, r \in Round :
         \/ Vote1(p, v, r)
@@ -175,28 +161,16 @@ Next ==
         \/ Vote4(p, v, r)
         \/ Decide(p, v, r)
         \/ Timeout(p, r)
-    /\ GoodRoundSpec
-
-vars == <<round, votes, decided>>
 
 (* `^\newpage^' *)
 
 Spec == 
     /\ Init 
     /\ [][Next]_vars
-    \* fairness constraints:
-    /\ \A p \in P, v \in Value, r \in Round :
-        /\ WF_vars(Vote1(p,v,r))
-        /\ WF_vars(Vote2(p,v,r))
-        /\ WF_vars(Vote3(p,v,r))
-        /\ WF_vars(Vote4(p,v,r))
-        /\ WF_vars(Decide(p,v,r))
-        /\ WF_vars(r < GoodRound /\ Timeout(p, r))
 
 Safety == \A p,q \in T, v,w \in Value, r1,r2 \in Round :
     <<r1,v>> \in decided[p] /\ <<r2,w>> \in decided[q] => v = w
 
-Liveness == \A p \in T : \E v \in Value : <>(<<GoodRound, v>> \in decided[p])
 \* Liveness exhaustively checked with 3 processes, 2 non-trivial quorums of cardinatlity 2, and GoodRound=2.
 \* Took 6 hours using 10 cores and 35GB of memory
 
