@@ -6,14 +6,14 @@
 (* `^https://decentralizedthoughts.github.io/2020-09-19-living-with-asynchrony-brachas-reliable-broadcast/.^' *)
 (*                                                                                                            *)
 (* We do not model the network but we do model malicious failures. For example, in                            *)
-(* step Vote below, a node votes for v when the non-faulty portion of a quorum                                *)
+(* step Vote below, a party votes for v when the non-faulty portion of a quorum                               *)
 (* votes for v. Note that this places no requirement on the faulty portion of the                             *)
-(* quorum, which models that the faulty nodes are free to lie in whichever way                                *)
-(* they want in order to make a non-faulty node take a step.                                                  *)
+(* quorum, which models that the faulty parties are free to lie in whichever way                              *)
+(* they want in order to make a non-faulty party take a step.                                                 *)
 (*                                                                                                            *)
-(* One thing that might seem strange is that faulty nodes take steps like everyone                            *)
-(* else. This does not matter since we place no requirements on the faulty nodes                              *)
-(* in the steps of non-faulty nodes, but it is convenient in order to avoid                                   *)
+(* One thing that might seem strange is that faulty parties take steps like everyone                          *)
+(* else. This does not matter since we place no requirements on the faulty parties                            *)
+(* in the steps of non-faulty parties, but it is convenient in order to avoid                                 *)
 (* conditionals everywhere (including in the statements of the properties like                                *)
 (* Agreement: we can assert that all members of U agree instead of all non-faulty                             *)
 (* members of U).                                                                                             *)
@@ -25,7 +25,7 @@ CONSTANTS
     l \* the leader
 ,   V \* the set of values that the leader may broadcast
 ,   Bot \* a special default value not in V
-,   B \* the set of faulty nodes (the baddies)
+,   B \* the set of faulty parties (the baddies)
 ,   U \* a resilient set
 
 ASSUME Resilient(U)
@@ -60,7 +60,7 @@ Agreement == \A v \in V : \A p1,p2 \in U :
 (* `^\newpage^' *)
 
 (********************************************************)
-(* We should also require that a node decide only once. *)
+(* We should also require that a party decide only once. *)
 (********************************************************)
 OutputOnce == \A v \in V, p \in P :
     [](output[p] = v => [](output[p] = v))
@@ -69,10 +69,10 @@ OutputOnce == \A v \in V, p \in P :
 (* Next we state some important invariants *)
 (*******************************************)
 
-(********************************************************************************)
-(* If the leader is non-faulty, then every nodes that echoes a value echoes the *)
-(* value that the leader sent:                                                  *)
-(********************************************************************************)
+(*********************************************************************************)
+(* If the leader is non-faulty, then every parties that echoes a value echoes the *)
+(* value that the leader sent:                                                   *)
+(*********************************************************************************)
 Invariant0 == \A p \in P : l \notin B /\ echo[p] # Bot => echo[p] = sent
 
 (*******************************************************************************)
@@ -85,7 +85,7 @@ Invariant1 == \A p \in U : vote[p] # Bot =>
         /\ \A q \in O \ B : echo[q] = vote[p]
 
 (*********************************************************************************)
-(* If a node p outputs v, then there is an open of p whose non-faulty members    *)
+(* If a party p outputs v, then there is an open of p whose non-faulty members   *)
 (* voted for v. Together with the Vote step below and Conjecture2, this implies  *)
 (* that, once a member of U has output v, every member of U eventually votes for *)
 (* v, and thus, because U is an open, byt step Output below, all members of U    *)
@@ -117,13 +117,13 @@ Echo(p, v) ==
     /\ UNCHANGED <<sent, vote, output>>
 
 (* `^\newpage^' *)
-(***********************************************************************************)
-(* A node p votes for v when either a) p receives echoes for v from an all members *)
-(* of one of its open neighborhoods or b) p receives votes for v from from a set S *)
-(* and all open neighborhoods of p intersect S (i.e. p is in the closure of S). We *)
-(* model the fact that faulty nodes may lie by requiring only that the good        *)
-(* portion of O, or the good portion of the set S, voted for v.                    *)
-(***********************************************************************************)
+(************************************************************************************)
+(* A party p votes for v when either a) p receives echoes for v from an all members *)
+(* of one of its open neighborhoods or b) p receives votes for v from from a set S  *)
+(* and all open neighborhoods of p intersect S (i.e. p is in the closure of S). We  *)
+(* model the fact that faulty parties may lie by requiring only that the non-faulty *)
+(* portion of O, or the non-faulty portion of the set S, voted for v.               *)
+(************************************************************************************)
 Vote(p, v) ==
     /\ vote[p] = Bot
     /\ \/ \E O \in Open : p \in O /\ \forall q \in O \ B : echo[q] = v
@@ -133,10 +133,10 @@ Vote(p, v) ==
     /\ vote' = [vote EXCEPT ![p] = v]
     /\ UNCHANGED <<sent, echo, output>>
 
-(*****************************************************************************)
-(* A node outputs when it receives echo messages for the same value from all *)
-(* members of one of its open neighborhoods.                                 *)
-(*****************************************************************************)
+(******************************************************************************)
+(* A party outputs when it receives echo messages for the same value from all *)
+(* members of one of its open neighborhoods.                                  *)
+(******************************************************************************)
 Output(p, v) ==
     /\ output[p] = Bot
     /\ \/ \E O \in Open : p \in O /\ \forall q \in O \ B : vote[q] = v
