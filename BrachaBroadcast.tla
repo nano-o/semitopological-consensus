@@ -6,10 +6,10 @@
 (* `^https://decentralizedthoughts.github.io/2020-09-19-living-with-asynchrony-brachas-reliable-broadcast/.^' *)
 (*                                                                                                            *)
 (* We do not model the network but we do model malicious failures. For example, in                            *)
-(* step Vote below, a node votes for v when the correct portion of a quorum votes                             *)
-(* for v. Note that this places no requirement on the faulty portion of the                                   *)
+(* step Vote below, a node votes for v when the non-faulty portion of a quorum                                *)
+(* votes for v. Note that this places no requirement on the faulty portion of the                             *)
 (* quorum, which models that the faulty nodes are free to lie in whichever way                                *)
-(* they want in order to make a correct node take a step.                                                     *)
+(* they want in order to make a non-faulty node take a step.                                                  *)
 (*                                                                                                            *)
 (* One thing that might seem strange is that faulty nodes take steps like everyone                            *)
 (* else. This does not matter since we place no requirements on the faulty nodes                              *)
@@ -44,18 +44,20 @@ TypeOkay == \A p \in P :
 (* We start with the properties we want the protocol to satisfy. *)
 (*****************************************************************)
 
-(*******************************************************************************)
-(* If the leader is correct, then eventually all members of U output the value *)
-(* sent by the leader:                                                         *)
-(*******************************************************************************)
+(**********************************************************************************)
+(* If the leader is non-faulty, then eventually all members of U output the value *)
+(* sent by the leader:                                                            *)
+(**********************************************************************************)
 Validity == 
     l \notin B => <>(\A p \in U : output[p] = sent)
 
-(**********************************************************************************)
-(* If a correct member of U outputs v, then eventually all members of U output v: *)
-(**********************************************************************************)
+(*************************************************************************************)
+(* If a non-faulty member of U outputs v, then eventually all members of U output v: *)
+(*************************************************************************************)
 Agreement == \A v \in V : \A p1,p2 \in U :
     [](output[p1] = v => <>(output[p2] = v))
+
+(* `^\newpage^' *)
 
 (********************************************************)
 (* We should also require that a node decide only once. *)
@@ -67,28 +69,28 @@ OutputOnce == \A v \in V, p \in P :
 (* Next we state some important invariants *)
 (*******************************************)
 
-(******************************************************************************)
-(* If the leader is correct, then every nodes that echoes a value echoes the  *)
-(* value that the leader sent:                                                *)
-(******************************************************************************)
+(********************************************************************************)
+(* If the leader is non-faulty, then every nodes that echoes a value echoes the *)
+(* value that the leader sent:                                                  *)
+(********************************************************************************)
 Invariant0 == \A p \in P : l \notin B /\ echo[p] # Bot => echo[p] = sent
 
 (*******************************************************************************)
 (* If a member of U votes for v, then there is an open neighborhood of U whose *)
-(* correct members echoed v:                                                   *)
+(* non-faulty members echoed v:                                                *)
 (*******************************************************************************)
 Invariant1 == \A p \in U : vote[p] # Bot =>
     \E O \in Open : 
         /\ O \cap U # {} 
         /\ \A q \in O \ B : echo[q] = vote[p]
 
-(**********************************************************************************)
-(* If a node p outputs v, then there is an open of p whose correct members voted  *)
-(* for v. Together with the Vote step below and Conjecture2, this implies that,   *)
-(* once a member of U has output v, every member of U eventually votes for v, and *)
-(* thus, because U is an open, byt step Output below, all members of U eventually *)
-(* output v                                                                       *)
-(**********************************************************************************)
+(*********************************************************************************)
+(* If a node p outputs v, then there is an open of p whose non-faulty members    *)
+(* voted for v. Together with the Vote step below and Conjecture2, this implies  *)
+(* that, once a member of U has output v, every member of U eventually votes for *)
+(* v, and thus, because U is an open, byt step Output below, all members of U    *)
+(* eventually output v                                                           *)
+(*********************************************************************************)
 Invariant2 == \A p \in P : output[p] # Bot =>
     \E O \in Open :
         /\ p \in O 
@@ -104,17 +106,17 @@ Init ==
     /\ output = [p \in P |-> Bot]
     /\ sent \in V \* initially, the leader sends an arbitrary value
 
-(********************************************************************************)
-(* If the leader is correct, then p echoes for the value that the leader sent.  *)
-(* Otherwise, we let p echo any value to model the fact that the leader can     *)
-(* lie.                                                                         *)
-(********************************************************************************)
+(**********************************************************************************)
+(* If the leader is non-faulty, then p echoes for the value that the leader sent. *)
+(* Otherwise, we let p echo any value to model the fact that the leader can lie.  *)
+(**********************************************************************************)
 Echo(p, v) ==
     /\ l \notin B => v = sent
     /\ echo[p] = Bot
     /\ echo' = [echo EXCEPT ![p] = v]
     /\ UNCHANGED <<sent, vote, output>>
 
+(* `^\newpage^' *)
 (***********************************************************************************)
 (* A node p votes for v when either a) p receives echoes for v from an all members *)
 (* of one of its open neighborhoods or b) p receives votes for v from from a set S *)
@@ -149,7 +151,7 @@ Next == \E p \in P, v \in V :
 (* We additionally require that every member of U eventually take a step when it *)
 (* can. We formalize this with fairness requirements:                            *)
 (*********************************************************************************)
-Fairness == \A p \in P, v \in V :
+Fairness == \A p \in U, v \in V :
     /\ WF_vars(Echo(p,v))
     /\ WF_vars(Vote(p,v))
     /\ WF_vars(Output(p,v))
