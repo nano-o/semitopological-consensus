@@ -2,7 +2,7 @@
 
 (**************************************************************************************************************)
 (* This is a specification of a semitopological version of `^Bracha's broadcast^'                             *)
-(* algorithm following                                                                                        *)
+(* algorithm roughly following                                                                                *)
 (* `^https://decentralizedthoughts.github.io/2020-09-19-living-with-asynchrony-brachas-reliable-broadcast/.^' *)
 (*                                                                                                            *)
 (* We do not model the network but we do model malicious failures. For example, in                            *)
@@ -13,10 +13,8 @@
 (*                                                                                                            *)
 (* One thing that might seem strange is that faulty parties take steps like everyone                          *)
 (* else. This does not matter since we place no requirements on the faulty parties                            *)
-(* in the steps of non-faulty parties, but it is convenient in order to avoid                                 *)
-(* conditionals everywhere (including in the statements of the properties like                                *)
-(* Agreement: we can assert that all members of U agree instead of all non-faulty                             *)
-(* members of U).                                                                                             *)
+(* in the steps of non-faulty parties and we excluded them in fairness requirements.                          *)
+(* More it is convenient in some cases in order to avoid conditionals.                                        *)
 (**************************************************************************************************************)
 
 EXTENDS Semitopology
@@ -44,17 +42,18 @@ TypeOkay == \A p \in P :
 (* We start with the properties we want the protocol to satisfy. *)
 (*****************************************************************)
 
-(**********************************************************************************)
-(* If the leader is non-faulty, then eventually all members of U output the value *)
-(* sent by the leader:                                                            *)
-(**********************************************************************************)
+(***********************************************************************************)
+(* If the leader is non-faulty, then eventually all non-faulty members of U output *)
+(* the value sent by the leader:                                                   *)
+(***********************************************************************************)
 Validity == 
-    l \notin B => <>(\A p \in U : output[p] = sent)
+    l \notin B => <>(\A p \in U \ B : output[p] = sent)
 
-(*************************************************************************************)
-(* If a non-faulty member of U outputs v, then eventually all members of U output v: *)
-(*************************************************************************************)
-Agreement == \A v \in V : \A p1,p2 \in U :
+(*********************************************************************************)
+(* If a non-faulty member of U outputs v, then eventually all non-faulty members *)
+(* of U output v:                                                                *)
+(*********************************************************************************)
+Agreement == \A v \in V : \A p1,p2 \in U \ B :
     [](output[p1] = v => <>(output[p2] = v))
 
 (* `^\newpage^' *)
@@ -124,12 +123,14 @@ Echo(p, v) ==
 (* model the fact that faulty parties may lie by requiring only that the non-faulty *)
 (* portion of O, or the non-faulty portion of the set S, voted for v.               *)
 (************************************************************************************)
-Vote(p, v) ==
+Vote(p, v, O, S) ==
     /\ vote[p] = Bot
-    /\ \/ \E O \in Open : p \in O /\ \forall q \in O \ B : echo[q] = v
-       \/ \E S \in SUBSET (P \ {p}): 
-            /\ p \in Closure(S)
-            /\ \forall q \in S \ B : vote[q] = v
+    /\ \/ /\ O \in Open 
+          /\ p \in O 
+          /\ \forall q \in O \ B : echo[q] = v
+       \/ /\ S \in SUBSET (P \ {p})
+          /\ p \in Closure(S)
+          /\ \forall q \in S \ B : vote[q] = v
     /\ vote' = [vote EXCEPT ![p] = v]
     /\ UNCHANGED <<sent, echo, output>>
 
@@ -137,24 +138,28 @@ Vote(p, v) ==
 (* A party outputs when it receives echo messages for the same value from all *)
 (* members of one of its open neighborhoods.                                  *)
 (******************************************************************************)
-Output(p, v) ==
+Output(p, v, O) ==
     /\ output[p] = Bot
-    /\ \/ \E O \in Open : p \in O /\ \forall q \in O \ B : vote[q] = v
+    /\ O \in Open
+    /\ p \in O 
+    /\ \forall q \in O \ B : vote[q] = v
     /\ output' = [output EXCEPT ![p] = v]
     /\ UNCHANGED <<sent, vote, echo>>
 
 \* The full transition relation:
-Next == \E p \in P, v \in V :
-    Echo(p, v) \/ Vote(p, v) \/ Output(p, v)
+Next == \E p \in P, v \in V, O \in Open, S \in SUBSET P :
+    Echo(p, v) \/ Vote(p, v, O, S) \/ Output(p, v, O)
 
-(*********************************************************************************)
-(* We additionally require that every member of U eventually take a step when it *)
-(* can. We formalize this with fairness requirements:                            *)
-(*********************************************************************************)
-Fairness == \A p \in U, v \in V :
-    /\ WF_vars(Echo(p,v))
-    /\ WF_vars(Vote(p,v))
-    /\ WF_vars(Output(p,v))
+(***********************************************************************************)
+(* We additionally require that every non-faulty party eventually take a step when *)
+(* it can do so using only non-faulty parties. We formalize this with fairness     *)
+(* requirements:                                                                   *)
+(***********************************************************************************)
+Fairness == \A p \in P \ B, v \in V, O \in Open, S \in SUBSET P :
+    O \cap B = {} /\ S \cap B = {} =>
+        /\ WF_vars(Echo(p,v))
+        /\ WF_vars(Vote(p,v,O,S))
+        /\ WF_vars(Output(p,v,O))
 
 (*****************************************************************)
 (* Finally, this formula specifies the behavior of the protocol: *)
