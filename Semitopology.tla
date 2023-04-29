@@ -20,7 +20,14 @@ Transitive(S) == \A O1, O2 \in Open :
     /\ O2 \cap S # {}
     => O1 \cap O2 # {}
 
+StronglyTransitive(S) ==\A O1, O2 \in Open :
+    /\ O1 \cap S # {}
+    /\ O2 \cap S # {}
+    => O1 \cap O2 \cap S # {}
+
 Topen(S) == S \in Open /\ Transitive(S)
+
+StrongTopen(S) == S \in Open /\ StronglyTransitive(S)
 
 (**********************************************************************************)
 (* Notion of resilient set discussed with Jamie on 4.28.2023                      *)
@@ -29,7 +36,9 @@ Topen(S) == S \in Open /\ Transitive(S)
 (* in the worse way possible as long as the failure assumptions of all the        *)
 (* non-failed members of S are satisfied.                                         *)
 (**********************************************************************************)
-Resilient(U) == U \in Open /\ \A C \in SUBSET P : Closed(C) => Topen(U \ C)
+Resilient(U) == 
+    /\ U \in Open 
+    /\ \A C \in SUBSET P : Closed(C) => StrongTopen(U \ C)
 
 \* A few conjectures
 
