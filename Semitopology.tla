@@ -20,7 +20,7 @@ Transitive(S) == \A O1, O2 \in Open :
     /\ O2 \cap S # {}
     => O1 \cap O2 # {}
 
-StronglyTransitive(S) ==\A O1, O2 \in Open :
+StronglyTransitive(S) == \A O1, O2 \in Open :
     /\ O1 \cap S # {}
     /\ O2 \cap S # {}
     => O1 \cap O2 \cap S # {}
@@ -29,16 +29,20 @@ Topen(S) == S \in Open /\ Transitive(S)
 
 StrongTopen(S) == S \in Open /\ StronglyTransitive(S)
 
-(**********************************************************************************)
-(* Notion of resilient set discussed with Jamie on 4.28.2023                      *)
-(*                                                                                *)
-(* This is a set that remains topen despite malicious nodes crafting their slices *)
-(* in the worse way possible as long as the failure assumptions of all the        *)
-(* non-failed members of S are satisfied.                                         *)
-(**********************************************************************************)
+(***********************************************************************************)
+(* Notion of resilient set.                                                        *)
+(*                                                                                 *)
+(* This is intended to be an abstraction of a set that, in a witness semitopology, *)
+(* remains topen despite malicious nodes crafting their slices in the worse way    *)
+(* possible, as long as the failure assumptions of all the non-failed members of S *)
+(* are satisfied. However, the abstraction in not sound as it is.                  *)
+(***********************************************************************************)
 Resilient(U) == 
     /\ U \in Open 
-    /\ \A C \in SUBSET P : Closed(C) => StrongTopen(U \ C)
+    /\ \A O \in Open : O \cap U # {} => \A O1,O2 \in Open :
+        /\ O1 \cap U \cap O # {}
+        /\ O2 \cap U \cap O # {}
+        => O1 \cap O2 \cap O # {}
 
 \* A few conjectures
 
