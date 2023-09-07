@@ -1,0 +1,284 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{xcolor}
+\usepackage{amsthm}
+\usepackage{mathtools}
+\usepackage[]{hyperref}
+\hypersetup{
+  colorlinks=false,
+}
+\usepackage{cleveref}
+
+\usepackage{tlatex}
+\usepackage{color}
+\definecolor{boxshade}{gray}{.85}
+\setboolean{shading}{true}
+
+\newtheorem{property}{Property}
+\newtheorem{claim}{Claim}
+\newtheorem{rrule}{Rule}
+
+\title{An Unauthenticated BFT Consensus Algorithm in 6 Phases}
+\date{September 2021}
+\author{Giuliano Losa}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+
+
+This document describes a new BFT consensus algorithm in the unauthenticated Byzantine model.
+
+This algorithm is live under eventual synchrony, meaning that, assuming quorum intersection and quorum availability, the malicious nodes cannot prevent well-behaved nodes from reaching a decision.
+In contrast, in SCP, malicious nodes can delay a decision forever, and liveness can only be guaranteed if we assume that malicious nodes are eventually evicted from the slices of well-behaved nodes.
+
+
+Like SCP, nodes following the algorithm use an amount of space that is bounded by
+a constant that is independent of the length of the execution.
+
+The algorithm has 6 phases leading to a decision: suggest/proof; propose;
+vote-1; vote-2; vote-3; vote-4. 
+%A leader proposal is decided in 4 phases in the best case, which matches the Stellar Consensus Protocol.
+
+The key to the liveness guarantee is that the leader determines whether a value v is safe at a round when the vote-2 messages of a blocking set show that v is safe, while follower nodes determine that v is safe when the vote-1 messages of a blocking set show that v is safe.
+Thus, any value determined safe by a leader is also determined safe by all other well-behaved nodes.
+
+Information-Theoretic HotStuff (IT-HS), which seems to be the state-of-the-art
+unauthenticated BFT consensus algorithm, uses 7 phases: suggest/proof; propose; echo;
+key-1; key-2; key-3; commit; decision.
+
+The key to obtaining a 6 phases is to not rely on locks, contrarily to IT-HS, and
+instead require nodes to check that the leader's value is safe before doing
+anything.  This way we know that as soon as f+1 endorse a value, then the value
+is safe.  In IT-HS, a node that has no lock may endorse an unsafe value from a
+Byzantine leader, and thus an additional phase (the echo phase) is needed to
+first establish that the leader's value is safe.
+
+\section{The Algorithm}
+
+We assume that there are at most $f$ malicious nodes out of $n$ nodes with $3f<n$.
+Any set of $2f+1$ nodes or more is called a quorum, and any set of $f+1$ nodes or more is called a blocking set.
+
+We describe the algorithm in a high-level round-by-round model. Each node executes a
+sequence of rounds, starting at round 0. Rounds are communication-closed and
+each round has a unique, predetermined leader. We assume that, before round
+GSR, the network is unreliable, i.e. messages can be lost; during and after
+GSR, we assume that every message sent by a well-behaved node is received.
+
+\subsection{Messages}
+
+A node can send the following messages.
+\begin{itemize}
+  \item \textit{proposal}, \textit{vote-1}, \textit{vote-2}, \textit{vote-3},
+    \textit{vote-4}, each containing a round and a value.
+  \item A \textit{suggest} message, containing
+    \begin{enumerate}
+      \item the highest \textit{vote-2} message that the node sent and
+      \item the second highest round for which the node sent a \textit{vote-2}
+        message, noted \textit{prev-vote-2}, and
+      \item the highest \textit{vote-3} message that the node sent.
+    \end{enumerate}
+  \item A \textit{proof} message, containing
+    \begin{enumerate}
+      \item the highest \textit{vote-1} message that the node sent and
+      \item the second highest round for which the node sent a \textit{vote-1}
+        message, noted \textit{prev-vote-1}, and
+      \item the highest \textit{vote-4} message that the node sent.
+    \end{enumerate}
+\end{itemize}
+
+\subsection{State}
+
+Across rounds, a node only has to remember the highest vote-1 and vote-2,
+vote-3 and vote-4 message it sent, and the round of the second highest vote-1
+and vote-2 messages it sent.
+
+\subsection{Evolution of a round}
+
+A round \texttt{r} proceeds as follows:
+\begin{enumerate}
+  \item Upon starting the round, a node \texttt{n} does the following:
+    \begin{enumerate}
+      \item it broadcasts a \textit{proof} message for the current round and
+      \item it sends a \textit{suggest} message to the leader of the round.
+    \end{enumerate}
+  \item When the leader has determined that value \texttt{v} is safe to propose
+    in current round (as described in \Cref{rule:picking-safe-proposal}), it broadcasts a
+    \textit{proposal} message for the current round and for \texttt{v}.
+  \item When a node determines that the leader's proposal is safe in the
+    current round (as described in \Cref{rule:checking-safe-proposal}), it broadcasts a vote-1
+    message for the current round and the leader's proposal.
+    \item A node that receives a quorum of \textit{vote-1} messages for the
+      current round and for the same value \texttt{v} sends a \textit{vote-2}
+      message for the current round and for \texttt{v}.
+    \item A node that receives a quorum of \textit{vote-2} messages for the
+      current round and for the same value \texttt{v} sends a \textit{vote-3}
+      message for the current round and for \texttt{v}.
+    \item A node that receives a quorum of \textit{vote-3} messages for the
+      current round and for the same value \texttt{v} sends a \textit{vote-4}
+      message for the current round and for \texttt{v}.
+    \item A node that receives a quorum of \textit{vote-4} messages for the
+      current round and for the same value \texttt{v} decides \texttt{v}
+\end{enumerate}
+
+NOTE: in an FBQS, information must be propagated throughout the
+system using the cascading mechanism (e.g. if a blocking set sent
+\texttt{vote-2} then send it too). Information in \texttt{proof} and
+\texttt{suggest} messages may also need to be propagated.
+
+\begin{rrule}
+\label{rule:picking-safe-proposal}
+All values are safe in round 0. If \texttt{r}$\neq 0$, a leader determines that the value \texttt{v} is safe to propose in round
+  \texttt{r} when the following holds:
+  \begin{enumerate}
+    \item A quorum \texttt{q} has sent \textit{suggest} messages in round \texttt{r}, and
+    \item According to what is reported in \textit{suggest} messages, either
+      \begin{enumerate}
+        % \item the round is 0, or
+          % \label{case:round_0_leader}
+        \item no member of \texttt{q} sent any \textit{vote-3} before round
+          \label{case:no_vote_leader}
+          \texttt{r}, or
+        \item there is a round $\texttt{r'}< \texttt{r}$ such that
+          \label{case:highest_vote_leader}
+          \begin{enumerate}
+            \item no member of \texttt{q} sent any \textit{vote-3} messages for a
+              round strictly higher than \texttt{r'}, and
+            \item any member of \texttt{q} that sent a \textit{vote-3} message in
+              round \texttt{r'} did so with value \texttt{v}, and
+            \item there is a blocking set \texttt{b} (e.g. $ \texttt{f} +1$
+              nodes) that all claim in their \textit{suggest} messages that
+              \texttt{v} is safe at \texttt{r'} (see \Cref{rule:claims_safe_leader}).
+          \end{enumerate}
+      \end{enumerate}
+  \end{enumerate}
+\end{rrule}
+
+\begin{rrule}
+  \label{rule:claims_safe_leader}
+We say that a node claims that \texttt{v} is safe in \texttt{r'} in a
+suggest message when either
+\begin{enumerate}
+  \item \texttt{r'} is 0,
+  \item the node's highest \textit{vote-2} message, as reported in the
+    \textit{suggest} message, was sent at round $\texttt{r''}\geq \texttt{r'}$
+    and for value \texttt{v}, or
+  \item the second highest round for which the node sent a \textit{vote-2}
+    message, as reported in the suggest message, is a round $\texttt{r''}\geq
+    \texttt{r'}$.
+\end{enumerate}
+\end{rrule}
+
+A node that receives a proposal from the leader of the current round determines
+that the value \texttt{v} is safe in round $\texttt{r}\neq 0$ like the
+leader does, except that it uses \textit{proof} messages instead of
+\textit{suggest} message, \textit{vote-4} instead of \textit{vote-3}, and
+\textit{vote-1} instead of \textit{vote-2}:
+
+\begin{rrule}
+\label{rule:checking-safe-proposal}
+
+A node that receives a proposal from the leader of the current round determines
+that the value \texttt{v} is safe to propose in round
+\texttt{r} when:
+\begin{enumerate}
+  \item A quorum \texttt{q} has sent \textit{proof} messages in round \texttt{r}, and
+  \item According to what is reported in \textit{proof} messages, either
+    \begin{enumerate}
+      % \item the round is 0, or
+        % \label{case:round_0}
+      \item no member of \texttt{q} sent any \textit{vote-4} before round
+        \texttt{r}, or
+        \label{case:no_votes}
+      \item there is a round $\texttt{r'}< \texttt{r}$ such that
+        \label{case:highest_vote}
+        \begin{enumerate}
+          \item no member of \texttt{q} sent any \textit{vote-4} messages for a
+            round strictly higher than \texttt{r'}, and
+          \item any member of \texttt{q} that sent a \textit{vote-4} message in
+            round \texttt{r'} did so with value \texttt{v}, and
+          \item there is a blocking set \texttt{b} (e.g. $ \texttt{f} +1$
+            nodes) that all claim in their \textit{suggest} messages that
+            \texttt{v} is safe at \texttt{r'} (as described in \Cref{rule:claims_safe})
+        \end{enumerate}
+    \end{enumerate}
+\end{enumerate}
+\end{rrule}
+
+\begin{rrule}
+  \label{rule:claims_safe}
+We say that a node claims that \texttt{v} is safe in \texttt{r'} in a
+\textit{proof} message when either
+\begin{enumerate}
+  \item \texttt{r'} is 0,
+  \item the node's highest \textit{vote-1} message, as reported in the
+    \textit{proof} message, was sent at round $\texttt{r''}\geq \texttt{r'}$
+    and for value \texttt{v}, or
+  \item the second highest round for which the node sent a \textit{vote-1}
+    message, as reported in the proof message, is a round $\texttt{r''}\geq
+    \texttt{r'}$.
+\end{enumerate}
+\end{rrule}
+
+
+\section{Liveness argument}
+
+Consider a round \texttt{r} that a) has a well-behaved leader and b) is
+sufficiently long for all the messages sent by well-behaved nodes to
+well-behaved nodes to be received.
+
+\begin{claim}
+  \label{claim:if_safe_then_termination}
+  If all well-behaved nodes determine that the leader's value is safe, then a
+  decision is made by all well-behaved nodes.
+\end{claim}
+
+\begin{claim}
+  \label{claim:blocking_claims_safe}
+  If a well-behaved node claims that \texttt{v} is safe at \texttt{r'} in its suggest message in round $\texttt{r}> \texttt{r'}$, then there is a blocking set \texttt{b} composed entirely of well-behaved nodes such that, in any \textit{proof} message in rounds greater or equal to \texttt{r}, every member of \texttt{b} claims that \texttt{v} is safe at \texttt{r'}.
+\end{claim}
+\begin{proof}
+  This rests on the fact that what is claimed safe by a well-behaved node can only increase.
+\end{proof}
+
+\begin{claim}
+  \label{claim:proposal_determined_safe}
+  A well-behaved node eventually determines that the leader's value \texttt{v} is safe.
+\end{claim}
+\begin{proof}
+  According to the rule that the leader uses to propose a value (\cref{rule:picking-safe-proposal}), there are three cases. First, if the round is 0 then all well-behaved nodes trivially determine that the leader's value is safe. 
+
+  Second (\Cref{case:no_vote_leader}), suppose that the round is not 0 and that the leader proposes \texttt{v} because a quorum \texttt{q} reports not sending any \texttt{vote-3} messages. Then, there is an entirely well-behaved blocking set \texttt{b} that never sent any \texttt{vote-3} messages. Since \texttt{vote-4} messages are sent in response to a quorum of \texttt{vote-3} messages, and since a quorum and a blocking set must have a well-behaved node in common, we conclude that no well-behaved node ever sent a \texttt{vote-4} message. Thus, once a well-behaved node \texttt{n} receives \textit{proof} messages from all other well-behaved nodes, \texttt{n} concludes that the proposal is safe according to \Cref{case:no_votes} of \Cref{rule:checking-safe-proposal}.
+
+  Third (\Cref{case:highest_vote_leader}), suppose that the round is not 0 and we have a quorum \texttt{q} and a round $\texttt{r'}< \texttt{r}$ such that:
+  \begin{enumerate}
+    \item no member of \texttt{q} sent any \textit{vote-3} messages for a
+      round strictly higher than \texttt{r'}, and
+      \label{item:one}
+    \item any member of \texttt{q} that sent a \textit{vote-3} message in
+      round \texttt{r'} did so with value \texttt{v}, and
+      \label{item:two}
+    \item there is a blocking set \texttt{b} (e.g. $ \texttt{f} +1$
+      nodes) that all claim in their \textit{suggest} messages that
+      \texttt{v} is safe at \texttt{r'} (see \Cref{rule:claims_safe_leader}).
+      \label{item:three}
+  \end{enumerate}
+
+  We make the following observations:
+  \begin{enumerate}
+    \item[a)] By \Cref{item:one} above, no well-behaved node sent any \textit{vote-4} message in any round higher than \texttt{r'}; otherwise, a quorum would have sent the corresponding \texttt{vote-3} messages and, by the quorum-intersection property, this contradicts \Cref{item:one}.
+    \item[b)] By \Cref{item:two} above, for a similar reason, any well-behaved node that sent a \texttt{vote-4} message in round \texttt{r'} did so for value \texttt{v}.
+    \item[c)] By \Cref{item:three}, there is a well-behaved node that claims that \texttt{v} is safe in \texttt{r'} in its \textit{suggest} message. By \Cref{claim:blocking_claims_safe}, we conclude that there is a blocking set \texttt{b} composed entirely of well-behaved nodes that claim in their \textit{proof} messages that \texttt{v} is safe at \texttt{r'}.
+  \end{enumerate}
+  By Items a), b), and c) and \Cref{rule:checking-safe-proposal}, we conclude that, once every well-behaved node has received a \textit{proof} message from every other well-behaved node, every well-behaved node determines that the leader's proposal is safe.
+\end{proof}
+
+Finally, by \Cref{claim:proposal_determined_safe} and
+\Cref{claim:if_safe_then_termination}, we conclude that a decision is reached
+by all well-behaved nodes.
+
+\end{document}
