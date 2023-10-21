@@ -202,9 +202,9 @@ Decide(p, r, v) ==
     /\ decided' = [decided EXCEPT ![p] = @ \cup {<<r,v>>}]
     /\ UNCHANGED <<network, round, phase, highest, secondHighest>>
 
-Timeout(p, r) ==
-    /\ round[p] = r
-    /\ round' = [round EXCEPT ![p] = r+1]
+StartRound(p, r) ==
+    /\ round[p] < r
+    /\ round' = [round EXCEPT ![p] = r]
     /\ phase' = [phase EXCEPT ![p] = "suggest/proof"]
     /\ UNCHANGED <<network, highest, secondHighest, decided>>
     /\ round'[p] \in Round \* for TLC
@@ -217,13 +217,12 @@ Next == \E p \in P, r \in Round, v \in Value :
     \/ Vote3(p, r, v)
     \/ Vote4(p, r, v)
     \/ Decide(p, r, v)
-    \/ Timeout(p, r)
+    \/ NewRound(p, r)
 
 Spec == Init /\ [][Next]_vars
 
 Safety == \A p,q \in P, v,w \in Value, r1,r2 \in Round :
     <<r1,v>> \in decided[p] /\ <<r2,w>> \in decided[q] => v = w
-
 
 \* Next we instantiate the Voting specification
 

@@ -10,7 +10,7 @@ V_MC == {v1, v2}
 P_MC == {p1, p2, p3}
 Quorum_MC == {{p1,p2}, {p2,p3}, {}, P}
 T_MC == P
-Nat_MC == {0,1,2}
+Nat_MC == 0..3
 NoDecision == \A p \in P : decided[p] = {}
 \* some process votes in phase 4 of round 0 but there is no decision in round 0;
 \* then there is a decision in round 1:

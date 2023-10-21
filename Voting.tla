@@ -150,9 +150,9 @@ Decide(p, v, r) ==
     /\ decided' = [decided EXCEPT ![p] = @ \union {<<r, v>>}]
     /\ UNCHANGED <<votes, round>>
 
-Timeout(p, r) ==
-    /\ r = round[p]
-    /\ round' = [round EXCEPT ![p] = r + 1]
+StartRound(p, r) ==
+    /\ round[p] < r
+    /\ round' = [round EXCEPT ![p] = r]
     /\ UNCHANGED <<votes, decided>>
 
 Next == 
@@ -162,7 +162,7 @@ Next ==
         \/ Vote3(p, v, r)
         \/ Vote4(p, v, r)
         \/ Decide(p, v, r)
-        \/ Timeout(p, r)
+        \/ StartRound(p, r)
 
 (* `^\newpage^' *)
 
@@ -172,5 +172,11 @@ Spec ==
 
 Safety == \A p,q \in T, v,w \in Value, r1,r2 \in Round :
     <<r1,v>> \in decided[p] /\ <<r2,w>> \in decided[q] => v = w
+
+(*
+Invariant1 ==
+    \A p \in T : \A r \in Round : \A i \in {2,3,4} :
+        votes[]
+*)
 
 =============================================================================
