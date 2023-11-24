@@ -1,6 +1,6 @@
 --------------------- MODULE VotingMC ---------------------
 
-EXTENDS Voting
+EXTENDS Voting, TLC
 
 \* Model-checker setup for Voting.tla
 
@@ -11,6 +11,9 @@ P_MC == {p1, p2, p3}
 Quorum_MC == {{p1,p2}, {p2,p3}, {}, P}
 T_MC == P
 Nat_MC == 0..3
+
+Sym == Permutations(P_MC) \cup Permutations(V_MC)
+
 NoDecision == \A p \in P : decided[p] = {}
 \* some process votes in phase 4 of round 0 but there is no decision in round 0;
 \* then there is a decision in round 1:
@@ -33,8 +36,5 @@ NegVoteInRound1 == \neg VoteInRound1
 
 
 RoundConstraint == \A p \in P : round'[p] \in Round
-
-
-\* Liveness exhaustively checked with GoodRound=2; took 6 hours using 10 cores and 35GB of memory
 
 =========================================================

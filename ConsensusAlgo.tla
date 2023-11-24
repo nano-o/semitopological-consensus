@@ -121,7 +121,7 @@ SafeAt(v, r, p, type) ==
             /\  \/ \A q \in Q : m[q][h].round = -1
                 \/ \E r2 \in Round :
                     /\ r2 < r
-                    /\ \E q \in Q : m[q][h].round = r2
+                    /\ \E q \in Q : m[q][h].round = r2 \* this is a bit more restrictive than in Voting.tla
                     /\ \A q \in Q : LET hvq == m[q][h] IN
                         /\ hvq.round <= r2
                         /\ hvq.round = r2 => hvq.value = v
@@ -131,7 +131,7 @@ SafeAt(v, r, p, type) ==
                             m2.type = type /\ m2.src = q /\ m2.round = r
                         /\ LET m2 == [q \in S |-> CHOOSE m2 \in network :
                                 m2.type = type /\ m2.src = q /\ m2.round = r] IN
-                            \A q \in S : ClaimsSafeAt(v, r2, m2[q])  
+                            \A q \in S : ClaimsSafeAt(v, r2, m2[q])
 
 Propose(p, r, v) ==
     /\ round[p] = r

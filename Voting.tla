@@ -37,9 +37,8 @@ NotAVote == [round |-> -1]
 
 \* `Leq' is a partial order on votes:
 Leq(v1, v2) ==
-    \/ v1.round < v2.round
-    \/ /\ v1.round = v2.round
-        \* TODO: we probably don't need this second part:
+    \/ v1.round <= v2.round
+    \/ /\ v1.round = v2.round \* TODO: do we ever need to compare votes in the same round?
        /\ v1.phase <= v2.phase
 
 \* Whether v is maximal in S
@@ -62,7 +61,7 @@ vars == <<round, votes, decided>>
 
 TypeOkay ==
     /\ votes \in [P -> SUBSET Vote]
-    /\ round \in [P -> Nat]
+    /\ round \in [P -> Round]
     /\ decided \in [P -> SUBSET (Round\times Value)]
 
 \* largest vote of p in phase `phase' before round r
@@ -79,7 +78,7 @@ SecondHighestVote(p, phase, r) ==
 \* `v' is safe in round `r2' according to the votes of process `p' in phase `phase' before round r:
 ClaimsSafeAt(v, r, r2, p, phase) ==
     \/ r2 = 0
-    \/ LET mv == HighestVote(p, 1, r) IN
+    \/ LET mv == HighestVote(p, 1, r) IN \* Highest vote of p in phase 1 before round r
          /\ r2 <= mv.round
          /\ mv.value = v
     \/ r2 <= SecondHighestVote(p, 1, r).round
@@ -98,12 +97,14 @@ SafeAt(v, r, p, phaseA, phaseB) ==
         /\  \/ \A q \in Q : HighestVote(q, phaseA, r) = NotAVote \* members of Q never voted in phaseA before r
             \/ \E r2 \in Round :
                 /\ r2 < r
-                /\ \E q \in Q : HighestVote(q, phaseA, r).round = r2
+                \* no member of Q voted in phaseA in round r2 or later, and
+                \* all members of Q that voted in r2 voted for v:
                 /\ \A q \in Q : LET hvq == HighestVote(q, phaseA, r) IN
                     /\ hvq.round <= r2
                     /\ hvq.round = r2 => hvq.value = v
+                \* a blocking set claims that v is safe in r2:
                 /\ \E S \in SUBSET P :
-                    /\ p \in Closure(S)
+                    /\ p \in Closure(S) \* That's a blocking set (cardinality f+1 in the classic setting)
                     /\ \A q \in S : ClaimsSafeAt(v, r, r2, q, phaseB)
 
 Init ==

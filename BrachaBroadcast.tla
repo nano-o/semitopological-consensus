@@ -125,8 +125,8 @@ Echo(p, v) ==
 (************************************************************************************)
 Vote(p, v, O, S) ==
     /\ vote[p] = Bot
-    /\ \/ /\ O \in Open 
-          /\ p \in O 
+    /\ \/ /\ O \in Open
+          /\ p \in O
           /\ \forall q \in O \ B : echo[q] = v
        \/ /\ S \in SUBSET (P \ {p})
           /\ p \in Closure(S)
