@@ -36,7 +36,7 @@ Message ==
 \cup [type : {"suggest"},
       src: P,
       round : Round, 
-      h2 : [round : RoundOrNone, value : Value], 
+      h2 : [round : RoundOrNone, value : Value],
       sh2 : RoundOrNone,
       h3 : [round : RoundOrNone, value : Value]]
 \cup [type : {"proof"}, 
@@ -113,25 +113,31 @@ SafeAt(v, r, p, type) ==
     \/ \E Q \in Quorum :
         /\ p \in Q \* Q must be a quorum of p
         \* every member of Q has joined the current round and sent a message of the right type:
-        /\ \A q \in Q : \E m \in network : 
+        /\ \A q \in Q : \E m \in network :
             m.type = type /\ m.src = q /\ m.round = r
-        /\ LET h == IF type = "proof" THEN "h4" ELSE "h3"
-               m == [q \in Q |-> CHOOSE m \in network :
-                m.type = type /\ m.src = q /\ m.round = r] IN
+        /\ LET h == IF type = "proof" THEN "h4" ELSE "h3" IN
+            \E m \in [Q -> network] :
+            /\ \A q \in Q : m[q].type = type /\ m[q].src = q /\ m[q].round = r
             /\  \/ \A q \in Q : m[q][h].round = -1
-                \/ \E r2 \in Round :
-                    /\ r2 < r
+                \/ \E r2 \in 0..(r-1) :
                     /\ \E q \in Q : m[q][h].round = r2 \* this is a bit more restrictive than in Voting.tla
                     /\ \A q \in Q : LET hvq == m[q][h] IN
                         /\ hvq.round <= r2
                         /\ hvq.round = r2 => hvq.value = v
-                    /\ \E S \in SUBSET P :
-                        /\ p \in Closure(S)
-                        /\ \A q \in S : \E m2 \in network : 
-                            m2.type = type /\ m2.src = q /\ m2.round = r
-                        /\ LET m2 == [q \in S |-> CHOOSE m2 \in network :
-                                m2.type = type /\ m2.src = q /\ m2.round = r] IN
-                            \A q \in S : ClaimsSafeAt(v, r2, m2[q])
+                    /\  \/ \E S \in SUBSET P :
+                            /\ p \in Closure(S)
+                            /\ \A q \in S : \E m2 \in network :
+                                m2.type = type /\ m2.src = q /\ m2.round = r /\ ClaimsSafeAt(v, r2, m2[q])
+                        \/ \E S1,S2 \in SUBSET P : \E v1,v2 \in Value :
+                                \E r3 \in r2..(r-1) :
+                                \E r4 \in (r2+1)..(r-1) :
+                            /\ v1 # v2
+                            /\ p \in Closure(S1) /\ p \in Closure(S2)
+                            /\ \A q \in S1 : \E m2 \in network :
+                                m2.type = type /\ m2.src = q /\ m2.round = r /\ ClaimsSafeAt(v1, r3, m2[q])
+                            /\ \A q \in S2 : \E m2 \in network :
+                                m2.type = type /\ m2.src = q /\ m2.round = r /\ ClaimsSafeAt(v2, r4, m2[q])
+                        
 
 Propose(p, r, v) ==
     /\ round[p] = r
@@ -217,7 +223,7 @@ Next == \E p \in P, r \in Round, v \in Value :
     \/ Vote3(p, r, v)
     \/ Vote4(p, r, v)
     \/ Decide(p, r, v)
-    \/ NewRound(p, r)
+    \/ StartRound(p, r)
 
 Spec == Init /\ [][Next]_vars
 

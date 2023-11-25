@@ -95,17 +95,23 @@ SafeAt(v, r, p, phaseA, phaseB) ==
         /\ p \in Q \* Q must be a quorum of p
         /\ \A q \in Q : round[q] >= r \* every member of Q is in round at least r
         /\  \/ \A q \in Q : HighestVote(q, phaseA, r) = NotAVote \* members of Q never voted in phaseA before r
-            \/ \E r2 \in Round :
-                /\ r2 < r
+            \/ \E r2 \in 0..(r-1) :
                 \* no member of Q voted in phaseA in round r2 or later, and
                 \* all members of Q that voted in r2 voted for v:
                 /\ \A q \in Q : LET hvq == HighestVote(q, phaseA, r) IN
                     /\ hvq.round <= r2
                     /\ hvq.round = r2 => hvq.value = v
-                \* a blocking set claims that v is safe in r2:
-                /\ \E S \in SUBSET P :
-                    /\ p \in Closure(S) \* That's a blocking set (cardinality f+1 in the classic setting)
-                    /\ \A q \in S : ClaimsSafeAt(v, r, r2, q, phaseB)
+                /\ \* v must be safe at r2
+                    \/ \E S \in SUBSET P :
+                        /\ p \in Closure(S) \* That's a blocking set (cardinality f+1 in the classic setting)
+                        /\ \A q \in S : ClaimsSafeAt(v, r, r2, q, phaseB)
+                    \/ \E S1,S2 \in SUBSET P : \E v1,v2 \in Value :
+                            \E r3 \in r2..(r-1) :
+                            \E r4 \in (r3+1)..(r-1) :
+                        /\ v1 # v2
+                        /\ p \in Closure(S1) /\ p \in Closure(S2)
+                        /\ \A q \in S1 : ClaimsSafeAt(v1, r, r3, q, phaseB)
+                        /\ \A q \in S2 : ClaimsSafeAt(v2, r, r4, q, phaseB)
 
 Init ==
     /\ votes = [p \in P |-> {}]
@@ -131,8 +137,6 @@ Vote2(p, v, r) ==
     /\ r = round[p]
     /\ Accepted(p, v, r, 1)
     /\ DoVote(p, v, r, 2)
-
-(* `^\pagebreak^' *)
 
 Vote3(p, v, r) ==
     /\ r = round[p]
@@ -164,8 +168,6 @@ Next ==
         \/ Vote4(p, v, r)
         \/ Decide(p, v, r)
         \/ StartRound(p, r)
-
-(* `^\newpage^' *)
 
 Spec == 
     /\ Init 
