@@ -1,10 +1,10 @@
 --------------------- MODULE Voting ---------------------
 
-(***********************************************************************************)
-(* This is a high-level specification of a consensus algorithm for a quorum system *)
-(* that forms a semitopology. There is no network, messages, or faults at this     *)
-(* level of abstraction.                                                           *)
-(***********************************************************************************)
+(**********************************************************************************)
+(* This is a high-level specification of the unauthenticated consensus algorithm. *)
+(* There is no network or messages at this level of abstraction, but we do model  *)
+(* Byzantine failures.                                                            *)
+(**********************************************************************************)
 
 EXTENDS Integers
 
@@ -12,10 +12,9 @@ CONSTANTS
     V \* the set of values to decide on
 ,   P \* the set of processes
 ,   Quorum \* the set of quorums
-,   Blocking \* blocking sets
+,   Blocking \* the set of blocking sets
 ,   B \* the set of malicious nodes
-,   Round
-
+,   Round \* the set of rounds
 
 \* Each round consists of 4 phases:
 Phase == 1..4
@@ -34,7 +33,7 @@ Maximal(vt, S) ==
 \* A maximal element in the set S, if such exists, and otherwise the default value provided:
 Max(S, default) ==
     IF \E e \in S : Maximal(e, S)
-    THEN CHOOSE e \in S : Maximal(e, S) \* Is this going to be a problem with Apalache semantics?
+    THEN CHOOSE e \in S : Maximal(e, S)
     ELSE default
 
 \* We now specify the behaviors of the algorithm:
