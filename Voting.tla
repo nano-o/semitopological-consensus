@@ -26,7 +26,7 @@ Vote == [round: Round, phase: Phase, value: V]
 NotAVote == [round |-> -1, phase |-> 1, value |-> CHOOSE v \in V : TRUE]
 
 \* Whether vote v is maximal in S
-\* @type: ({round : Int, value : V, phase : Int}, Set({round : Int, value : V, phase : Int})) => Bool;
+\* @type: ($voteType, Set($voteType)) => Bool;
 Maximal(vt, S) ==
     /\ vt \in S
     /\ \A vt2 \in S : vt2.round <= vt.round
@@ -39,13 +39,12 @@ Max(S, default) ==
 
 \* We now specify the behaviors of the algorithm:
 
-VARIABLES votes, round, proposal
-vars == <<round, votes, proposal>>
+VARIABLES votes, round
+vars == <<round, votes>>
 
 TypeOK ==
     /\ votes \in [P -> SUBSET Vote]
     /\ round \in [P -> Round]
-    /\ proposal \in [Round -> SUBSET V]
 TypeOK_ == TypeOK
 
 decided == {v \in V : \E Q \in Quorum, r \in Round : \A p \in Q \ B :
@@ -73,12 +72,13 @@ ClaimsSafeAt(v, r, r2, p, phase) ==
 \* Whether value v is safe to vote for/propose in round r by process p
 \* In case of a vote, we'll use phaseA=4 and phaseB=1
 \* In case of a proposal, we'll use phaseA=3 and phaseB=2
-SafeAt(v, r, p, phaseA, phaseB) ==
+ShowsSafeAt(v, r, p, phaseA, phaseB) ==
     \/ r = 0
     \/ \E Q \in Quorum :
         /\ \A q \in Q : round[q] >= r \* every member of Q is in round at least r
         /\  \/ \A q \in Q : HighestVote(q, phaseA, r).round = -1 \* members of Q never voted in phaseA before r
-            \/ \E r2 \in 0..(r-1) :
+            \/ \E r2 \in Round :
+                /\ 0 <= r2 /\ r2 < r
                 \* no member of Q voted in phaseA in round r2 or later, and
                 \* all members of Q that voted in r2 voted for v:
                 /\ \A q \in Q : LET hvq == HighestVote(q, phaseA, r) IN
@@ -86,39 +86,27 @@ SafeAt(v, r, p, phaseA, phaseB) ==
                     /\ hvq.round = r2 => hvq.value = v
                 /\ \* v must be safe at r2
                     \/ \E S \in Blocking : \A q \in S : ClaimsSafeAt(v, r, r2, q, phaseB)
-                    \/ \E S1,S2 \in Blocking : \E v1,v2 \in V :
-                            \E r3 \in r2..(r-1) :
-                            \E r4 \in (r3+1)..(r-1) :
+                    \* TODO the following disjunct causes a CTI with 3 rounds
+                    \/ \E S1,S2 \in Blocking : \E v1,v2 \in V : \E r3,r4 \in Round :
                         /\ v1 # v2
+                        /\ r2 <= r3 /\ r3 < r4 /\ r4 < r
                         /\ \A q \in S1 : ClaimsSafeAt(v1, r, r3, q, phaseB)
                         /\ \A q \in S2 : ClaimsSafeAt(v2, r, r4, q, phaseB)
 
 Init ==
     /\ votes = [p \in P |-> {}]
     /\ round = [p \in P |-> 0]
-    /\ proposal = [r \in Round |-> {}]
 
 DoVote(p, v, r, phase) ==
     \* never voted before in this round and phase:
     /\ \A w \in V : [round |-> r, phase |-> phase, value |-> w] \notin votes[p]
     \* cast the vote:
     /\ votes' = [votes EXCEPT ![p] = @ \union {[round |-> r, phase |-> phase, value |-> v]}]
-    /\ UNCHANGED <<round, proposal>>
-
-HonestProposal(p, r, v) ==
-    /\ proposal[r] = {}
-    /\ SafeAt(v, r, p, 4, 1)
-    /\ proposal' = [proposal EXCEPT ![r] = @ \union {v}]
-    /\ UNCHANGED <<votes, round>>
-
-Proposal(r, v) ==
-    /\ proposal' = [proposal EXCEPT ![r] = @ \union {v}]
-    /\ UNCHANGED <<votes, round>>
+    /\ UNCHANGED <<round>>
 
 Vote1(p, v, r) ==
     /\ r = round[p]
-    /\ v \in proposal[r]
-    /\ SafeAt(v, r, p, 4, 1)
+    /\ ShowsSafeAt(v, r, p, 4, 1)
     /\ DoVote(p, v, r, 1)
 
 \* whether v has been voted for by a quorum of p in phase `phase' of round `r':
@@ -144,39 +132,73 @@ Vote4(p, v, r) ==
 StartRound(p, r) ==
     /\ round[p] < r
     /\ round' = [round EXCEPT ![p] = r]
-    /\ UNCHANGED <<votes, proposal>>
+    /\ UNCHANGED <<votes>>
 
 \* This models malicious behavior
-\* TLC cannot handle it well though
 ByzantineHavoc ==
     \E new_votes \in [P -> SUBSET Vote] :
     \E new_round \in [P -> Round] :
-    \E new_proposal \in [Round -> SUBSET V] :
         /\  votes' = [p \in P |-> IF p \in B THEN new_votes[p] ELSE votes[p]]
         /\  round' = [p \in P |-> IF p \in B THEN new_round[p] ELSE round[p]]
-        /\  proposal' = new_proposal \* this we havoc completely as safety does not depend on it.
 
 Next ==
-    (* \/  ByzantineHavoc *)
+    \/  ByzantineHavoc
     \/  \E p \in P, v \in V, r \in Round :
         \/ Vote1(p, v, r)
         \/ Vote2(p, v, r)
-        (* \/ Vote3(p, v, r) *)
-        (* \/ Vote4(p, v, r) *)
+        \/ Vote3(p, v, r)
+        \/ Vote4(p, v, r)
         \/ StartRound(p, r)
-        \* \/ HonestProposal(p, r, v)
-        \* \/ Proposal(r, v)
 
 Spec == Init /\ [][Next]_vars
 
 Safety == \A v1,v2 \in decided : v1 = v2
 
 \* Simple properties
-Invariant1 == \A p \in P \ B : \A vt \in votes[p] :
-    /\  vt.round <= round[p]
-    /\  \A vt2 \in votes[p] : vt2.round = vt.round /\ vt2.phase = vt.phase => vt2.value = vt.value
-    /\  vt.phase < 3
-    /\  vt.phase > 1 => \E Q \in Quorum : \A q \in Q \ B : [round |-> vt.round, phase |-> (vt.phase)-1, value |-> vt.value] \in votes[q]
+
+VotedFor(p, r, v) ==  [round |-> r, phase |-> 4, value |-> v] \in votes[p]
+
+OneValuePerBallot == \A p \in P \ B : \A vt,vt2 \in votes[p] :
+    vt2.round = vt.round /\ vt2.phase = vt.phase => vt2.value = vt.value
+
+NoFutureVote == \A p \in P \ B : \A vt \in votes[p] : vt.round <= round[p]
+
+OneValuePerPhasePerRound == \A p \in P \ B : \A vt \in votes[p] :
+    \A vt2 \in votes[p] : vt2.round = vt.round /\ vt2.phase = vt.phase => vt2.value = vt.value
+
+VoteHasQuorumInPreviousPhase == \A p \in P \ B : \A vt \in votes[p] : vt.phase > 1 =>
+    \E Q \in Quorum : \A q \in Q \ B :
+        [round |-> vt.round, phase |-> (vt.phase)-1, value |-> vt.value] \in votes[q]
+
+Invariant1 ==
+    /\  NoFutureVote
+    /\  OneValuePerPhasePerRound
+    /\  VoteHasQuorumInPreviousPhase
 Invariant1_ == TypeOK /\ Invariant1
+
+\* Now the main invariant
+
+DidNotVoteAt(p, r) == \A v \in V : \neg VotedFor(p, r, v)
+
+CannotVoteAt(p, r) == round[p] > r /\ DidNotVoteAt(p, r)
+
+NoneOtherChoosableAt(r, v) == \E Q \in Quorum :
+    \A p \in Q \ B : VotedFor(p, r, v) \/ CannotVoteAt(p, r)
+
+SafeAt(r, v) == \A c \in Round : 0 <= c /\ c < r => NoneOtherChoosableAt(c, v)
+
+VotesSafe == \A p \in P \ B : \A vt \in votes[p] :
+    SafeAt(vt.round, vt.value)
+VotesSafe_ == TypeOK /\ Invariant1 /\ VotesSafe
+
+\* The full inductive invariant:
+Invariant ==
+    /\  TypeOK
+    /\  NoFutureVote
+    /\  OneValuePerPhasePerRound
+    /\  VoteHasQuorumInPreviousPhase
+    /\  VotesSafe
+    /\  Safety
+Invariant_ == Invariant
 
 =============================================================================
