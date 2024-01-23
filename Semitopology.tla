@@ -28,14 +28,13 @@ StronglyTransitive(S) == \A O1, O2 \in Open :
 Topen(S) == S \in Open /\ Transitive(S)
 
 StrongTopen(S) == S \in Open /\ StronglyTransitive(S)
-
+                                                    
 (***********************************************************************************)
-(* Notion of resilient set.                                                        *)
-(*                                                                                 *)
 (* This is intended to be an abstraction of a set that, in a witness semitopology, *)
 (* remains topen despite malicious nodes crafting their slices in the worse way    *)
 (* possible, as long as the failure assumptions of all the non-failed members of S *)
-(* are satisfied. However, the abstraction in not sound as it is.                  *)
+(* are satisfied. That is, we still have quorum intersection if we remove a closed *)
+(* set. However, the abstraction in not sound as it is.                            *)
 (***********************************************************************************)
 Resilient(U) == 
     /\ U \in Open 
