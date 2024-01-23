@@ -85,7 +85,6 @@ ShowsSafeAt(v, r, p, phaseA, phaseB) ==
                     /\ hvq.round = r2 => hvq.value = v
                 /\ \* v must be safe at r2
                     \/ \E S \in Blocking : \A q \in S : ClaimsSafeAt(v, r, r2, q, phaseB)
-                    \* TODO the following disjunct causes a CTI with 3 rounds
                     \/ \E S1,S2 \in Blocking : \E v1,v2 \in V : \E r3,r4 \in Round :
                         /\ v1 # v2
                         /\ r2 <= r3 /\ r3 < r4 /\ r4 < r
