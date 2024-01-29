@@ -1,4 +1,4 @@
------------------- MODULE VotingApalache ------------------
+------------------ MODULE ApaVoting ------------------
 
 EXTENDS Integers
 

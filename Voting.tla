@@ -10,10 +10,10 @@ EXTENDS Integers
 
 CONSTANTS
     V \* the set of values to decide on
-,   P \* the set of processes
-,   Quorum \* the set of quorums
-,   Blocking \* the set of blocking sets
-,   B \* the set of malicious nodes
+,   P \* the set of processes (typically 3f+1 nodes)
+,   Quorum \* the set of quorums (typically sets of 2f+1 nodes out of 3f+1)
+,   Blocking \* the set of blocking sets (typically sets f+1 nodes out of 3f+1)
+,   B \* the set of malicious nodes (typically f nodes)
 ,   Round \* the set of rounds
 
 \* Each round consists of 4 phases:
@@ -194,6 +194,7 @@ Invariant ==
     /\  TypeOK
     /\  NoFutureVote
     /\  OneValuePerPhasePerRound
+    \* It's interesting that we don't need the fact that there's at most one value voted by well-behaved processes in phases > 1
     /\  VoteHasQuorumInPreviousPhase
     /\  VotesSafe
     /\  Safety
