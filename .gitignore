@@ -24,7 +24,7 @@
 !*.prefs
 
 ## Whitelist all folders
-!*/
+# !*/
 
 ## quint spec
 !*.qnt
